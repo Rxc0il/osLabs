@@ -9,41 +9,28 @@ int is_num(char c) {
 
 int read_line_of_int(int* res) {
     char c = 0;
-    int i = 0, k = 0, sign = 1, r;
-    int flag = 1;
+    int r;
     int buf = 0;
-    int sum = 0;
-    while (c != '\n') {
-        while(1) {
-            r = read(STDIN_FILENO, &c, sizeof(char));
-            if (r < 1) {
-                return r;
-            }
-            if ((c == '\n') || (c == ' ')) {
-                break;
-            }
-            if (flag && (c == '-')) {
-                sign = -1;
-            } else if (!is_num(c)) {
-                return -1;
-            } else {
-                buf = buf * 10 + c - '0';
-                i++;
-                if (flag) {
-                    k++;
-                    flag = 0;
-                }
-            }
+    int sign = 1;
+
+    while (1) {
+        r = read(STDIN_FILENO, &c, sizeof(char));
+        if (r < 1) {
+            return r;
         }
-        sum = sum + buf * sign;
-        buf = 0;
-        flag = 1;
-        sign = 1;
+        if (c == '\n') {
+            break;
+        }
+        if (c == '-') {
+            sign = -1;
+        } else if (is_num(c)) {
+            buf = buf * 10 + (c - '0');
+        } else if (c != ' ') {
+            return -1;
+        }
     }
-    if (k == 0) {
-        return 0;
-    }
-    *res = sum;
+
+    *res = buf * sign;
     return 1;
 }
 
