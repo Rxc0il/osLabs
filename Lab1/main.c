@@ -40,7 +40,11 @@ int read_line(char** buf, int* n){
         (*buf)[i] = c;
         i++;
         if (i >= *n) {
-            *buf = realloc(*buf, (*n) * 2 * sizeof(char));
+            char* new_buf = realloc(*buf, (*n) * 2 * sizeof(char));
+            if (!new_buf) {
+                return -1;
+            }
+            *buf = new_buf;
             *n = *n * 2;
         }
         if (c == '\n') {
@@ -53,10 +57,16 @@ int read_line(char** buf, int* n){
 
 int main() {
     char* buf = malloc(128 * sizeof(char));
+    if (!buf) {
+        char* msg = "fail to allocate memory\n";
+        write(STDOUT_FILENO, msg, strlen(msg));
+        exit(-1);
+    }
     int n = 128;
     if (read_line(&buf, &n) == -1) {
         char* msg = "fail to read file name\n";
         write(STDOUT_FILENO, msg, strlen(msg));
+        free(buf);
         exit(-1);
     }
 
@@ -64,13 +74,16 @@ int main() {
     if (file_fd == -1) {
         char* msg = "fail to open file\n";
         write(STDOUT_FILENO, msg, strlen(msg));
+        free(buf);
         exit(-1);
     }
 
-    int pipe_fd [2];
+    int pipe_fd[2];
     if (pipe(pipe_fd) == -1) {
         char* msg = "fail to create pipe\n";
         write(STDOUT_FILENO, msg, strlen(msg));
+        free(buf);
+        close(file_fd);
         exit(-1);
     }
 
@@ -78,37 +91,33 @@ int main() {
     if (pid == -1) {
         char* msg = "fail to fork\n";
         write(STDOUT_FILENO, msg, strlen(msg));
+        free(buf);
+        close(file_fd);
+        close(pipe_fd[0]);
+        close(pipe_fd[1]);
         exit(-1);
     }
 
     if (pid == 0) {
+        close(pipe_fd[0]);
         if (dup2(file_fd, STDIN_FILENO) == -1) {
             char* msg = "fail to reassign file descriptor\n";
             write(STDOUT_FILENO, msg, strlen(msg));
+            free(buf);
+            close(file_fd);
+            close(pipe_fd[1]);
             exit(-1);
         }
         close(file_fd);
         if (dup2(pipe_fd[1], STDOUT_FILENO) == -1) {
             char* msg = "fail to reassign file descriptor\n";
             write(STDOUT_FILENO, msg, strlen(msg));
+            free(buf);
+            close(pipe_fd[1]);
             exit(-1);
         }
         close(pipe_fd[1]);
-        close(pipe_fd[0]);
         char *arg[] = {"./child.out", NULL};
         if (execv("./child.out", arg) == -1) {
             char* msg = "fail to replace process image\n";
-            write(STDOUT_FILENO, msg, strlen(msg));
-            exit(-1);
-        }
-    } else {
-        close(pipe_fd[1]);
-        char c;
-        int x;
-        while (read(pipe_fd[0], &x, sizeof(int)) > 0) {
-            print_int(x);
-        }
-        waitpid(pid, 0 , 0);
-    }
-    return 0;
-}
+            write(STDOUT_FILENO, msg,
